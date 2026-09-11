@@ -4,12 +4,13 @@ const path = require('path');
 const { WebSocketServer } = require('ws');
 
 const PORT = Number(process.env.PORT || 10000);
-const GATE = String(process.env.MINTOWS_GATE_PASSWORD || '');
+const GATE = String(process.env.MINTOWS_GATE_PASSWORD || '').trim();
 if (!GATE) console.warn('MINTOWS_GATE_PASSWORD is not set; all authentication attempts will fail.');
 let agent = null;
 let agentConnectedAt = null;
 let agentLastMessageAt = null;
 let agentAuthFailures = 0;
+let clientAuthFailures = 0;
 const clients = new Set();
 const remoteHtml = fs.readFileSync(path.join(__dirname, 'remote.html'), 'utf8');
 
@@ -24,7 +25,7 @@ const server = http.createServer((req,res)=>{
   }
   if (url.pathname === '/health') {
     res.writeHead(200, {'content-type':'application/json'});
-    return res.end(JSON.stringify({ok:true,service:'mintows Browser Relay',agentConnected:!!agent,clients:clients.size,agentConnectedAt,agentLastMessageAt,agentAuthFailures}));
+    return res.end(JSON.stringify({ok:true,service:'mintows Browser Relay',agentConnected:!!agent,clients:clients.size,agentConnectedAt,agentLastMessageAt,agentAuthFailures,clientAuthFailures,gateConfigured:!!GATE,gateLength:GATE.length}));
   }
   res.writeHead(404); res.end('Not found');
 });
@@ -59,7 +60,7 @@ wss.on('connection', (ws, req) => {
         if (!authed) {
           if (m.type !== 'auth' || m.role !== 'agent' || !GATE || String(m.password || '') !== GATE) {
             agentAuthFailures++;
-            console.warn('[AGENT] authentication failed');
+            console.warn('[AGENT] authentication failed; receivedLength=', String(m.password || '').length, 'expectedLength=', GATE.length);
             try { ws.send(JSON.stringify({type:'auth-error', error:'agent authentication failed'})); } catch {}
             return ws.close(1008, 'authentication failed');
           }
@@ -91,7 +92,8 @@ wss.on('connection', (ws, req) => {
       const m = JSON.parse(raw.toString());
       if (!authed) {
         if (m.type !== 'auth' || m.role !== 'client' || !GATE || String(m.password || '') !== GATE) {
-          console.warn('[CLIENT] authentication failed');
+          clientAuthFailures++;
+          console.warn('[CLIENT] authentication failed; receivedLength=', String(m.password || '').length, 'expectedLength=', GATE.length);
           send(ws, {type:'auth-error', error:'ゲートパスワードが正しくありません'});
           return ws.close(1008, 'authentication failed');
         }
