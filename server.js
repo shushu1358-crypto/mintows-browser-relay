@@ -31,7 +31,7 @@ const server = http.createServer((req,res)=>{
   res.writeHead(404); res.end('Not found');
 });
 
-const wss = new WebSocketServer({ noServer: true, maxPayload: 8*1024*1024 });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 16*1024*1024 });
 
 server.on('upgrade', (req, socket, head) => {
   let pathname = '';
@@ -74,7 +74,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
         agentLastMessageAt = new Date().toISOString();
-        if (m.type === 'frame' || m.type === 'state' || m.type === 'audio') broadcast(m);
+        if (['frame','state','audio','file-chooser','file-upload-progress','file-uploaded','file-upload-error','file-download-start','file-download-chunk','file-download-end'].includes(m.type)) broadcast(m);
       } catch (e) {
         console.warn('[AGENT] message error:', e.message || e);
       }
